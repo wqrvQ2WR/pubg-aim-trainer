@@ -20,6 +20,10 @@ const HIT_FLASH_DURATION := 0.15
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	offset_left = 0
+	offset_top = 0
+	offset_right = 0
+	offset_bottom = 0
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	weapon_name_label = _make_label(40, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT)
