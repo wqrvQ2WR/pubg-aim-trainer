@@ -111,7 +111,8 @@ func _refresh_sub_label() -> void:
 	var w := WeaponData.get_weapon(player.current_weapon_id)
 	var mode_kr: String = {"single": "단발", "burst": "점사", "auto": "연사"}.get(player.get_current_fire_mode(), "")
 	weapon_sub_label.text = "%d / %d   ·   %s   ·   DMG %d   RPM %d" % [
-		player.ammo_in_mag, w["magazine"], mode_kr, w["damage"], w["rpm"]
+		player.ammo_in_mag, w["magazine"], mode_kr, w["damage"],
+		WeaponData.get_effective_rpm(player.current_weapon_id)
 	]
 
 
@@ -155,7 +156,10 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var center := size / 2.0
-	var gap := 7.0
+	var spread_deg := 0.0
+	if player:
+		spread_deg = player.get_spread_deg()
+	var gap := 7.0 + spread_deg * 6.0
 	var arm_len := 11.0
 	var thickness := 2.0
 	var color := Color(1, 1, 1, 0.9)

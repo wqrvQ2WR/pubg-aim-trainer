@@ -192,6 +192,36 @@ func _stance_recoil_multiplier() -> float:
 			return 1.0
 
 
+func _stance_spread_multiplier() -> float:
+	match stance:
+		Stance.CROUCH:
+			return 0.55
+		Stance.PRONE:
+			return 0.3
+		_:
+			return 1.0
+
+
+## 이동/자세/조준 상태에 따른 탄퍼짐(도 단위) - 걸을수록/뛸수록 넓어지고
+## 앉거나 엎드리면 줄어들며, 조준(ADS)/견착 시에는 크게/약간 줄어든다.
+func get_spread_deg() -> float:
+	return _current_spread_deg()
+
+
+func _current_spread_deg() -> float:
+	var base := WeaponData.get_base_spread(current_weapon_id)
+	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
+	var speed_ratio: float = clamp(horizontal_speed / SPEED_STAND, 0.0, 1.3)
+	var move_mult := 1.0 + speed_ratio * 2.2
+	var stance_mult := _stance_spread_multiplier()
+	var aim_mult := 1.0
+	if is_ads:
+		aim_mult = 0.3
+	elif is_shoulder:
+		aim_mult = 0.7
+	return base * move_mult * stance_mult * aim_mult
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and mouse_captured:
 		var sens_mult := _current_sens_mult()
@@ -315,6 +345,13 @@ func _do_hit_raycast() -> void:
 	var space_state := get_world_3d().direct_space_state
 	var origin := camera.global_transform.origin
 	var forward := -camera.global_transform.basis.z
+
+	var spread_rad := deg_to_rad(_current_spread_deg())
+	if spread_rad > 0.0:
+		var rand_yaw := (randf() * 2.0 - 1.0) * spread_rad
+		var rand_pitch := (randf() * 2.0 - 1.0) * spread_rad
+		forward = (camera.global_transform.basis * Vector3(rand_yaw, rand_pitch, -1.0)).normalized()
+
 	var to := origin + forward * 400.0
 	var query := PhysicsRayQueryParameters3D.create(origin, to)
 	query.collide_with_areas = true

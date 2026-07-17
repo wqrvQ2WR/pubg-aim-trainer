@@ -192,6 +192,37 @@ func get_ads_fov_mult(weapon_id: String) -> float:
 	return mult
 
 
+## 실제 체감 연사력이 너무 빠르다는 피드백으로 전체 연사 속도를 낮추는 배율
+const GLOBAL_RPM_SCALE := 0.72
+
+
+func get_effective_rpm(weapon_id: String) -> int:
+	var w := get_weapon(weapon_id)
+	return int(round(float(w["rpm"]) * GLOBAL_RPM_SCALE))
+
+
+func get_fire_interval(weapon_id: String) -> float:
+	return 60.0 / float(get_effective_rpm(weapon_id))
+
+
+## 카테고리별 기본 히프파이어(무조준 사격) 탄퍼짐 - 클수록 덜 정확함
+const BASE_HIP_SPREAD_DEG := {
+	"AR": 0.9,
+	"DMR": 0.6,
+	"SMG": 0.8,
+	"LMG": 1.4,
+	"SR": 2.5,
+	"PISTOL": 0.7,
+	"SHOTGUN": 1.0,
+}
+
+
+func get_base_spread(weapon_id: String) -> float:
+	var w := get_weapon(weapon_id)
+	var spread: float = BASE_HIP_SPREAD_DEG.get(w["category"], 0.9)
+	return spread
+
+
 func get_ids_by_category(category: String) -> Array:
 	var ids := []
 	for id in WEAPONS.keys():
@@ -248,8 +279,3 @@ func get_shot_recoil(weapon_id: String, shot_index: int) -> Vector2:
 		horizontal *= r["kick_first"]
 
 	return Vector2(vertical, horizontal)
-
-
-func get_fire_interval(weapon_id: String) -> float:
-	var w := get_weapon(weapon_id)
-	return 60.0 / float(w["rpm"])

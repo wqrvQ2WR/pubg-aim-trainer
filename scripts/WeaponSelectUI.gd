@@ -98,7 +98,7 @@ func _build_grid() -> void:
 			btn.add_child(icon)
 
 			var label := Label.new()
-			label.text = "%s\n%d dmg  ·  %d rpm" % [w["name"], w["damage"], w["rpm"]]
+			label.text = "%s\n%d dmg  ·  %d rpm" % [w["name"], w["damage"], WeaponData.get_effective_rpm(id)]
 			label.add_theme_font_size_override("font_size", 17)
 			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			label.mouse_filter = Control.MOUSE_FILTER_IGNORE
