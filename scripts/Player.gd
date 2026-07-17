@@ -8,6 +8,7 @@ signal fire_mode_changed(mode: String)
 signal hit_registered(is_kill: bool)
 signal shot_fired()
 signal ads_changed(active: bool)
+signal shoulder_changed(active: bool)
 
 enum Stance { STAND, CROUCH, PRONE }
 
@@ -20,6 +21,9 @@ const PITCH_LIMIT := deg_to_rad(89.0)
 const BASE_FOV := 80.0
 const ADS_SENS_MULT := 0.55
 const ADS_TWEEN_TIME := 0.12
+const SHOULDER_FOV_MULT := 0.92
+const SHOULDER_SENS_MULT := 0.8
+const SHOULDER_RECOIL_MULT := 0.8
 
 const HEIGHT_STAND := 1.8
 const HEIGHT_CROUCH := 1.1
@@ -46,6 +50,7 @@ var shots_remaining_in_trigger: int = 0
 
 var mouse_captured: bool = true
 var is_ads: bool = false
+var is_shoulder: bool = false
 var ads_tween: Tween
 
 
@@ -89,6 +94,7 @@ func set_weapon(id: String) -> void:
 	auto_hold = false
 	shots_remaining_in_trigger = 0
 	_set_ads(false)
+	_set_shoulder(false)
 	weapon_changed.emit(id)
 	ammo_changed.emit(ammo_in_mag, w["magazine"])
 	fire_mode_changed.emit(get_current_fire_mode())
@@ -96,14 +102,34 @@ func set_weapon(id: String) -> void:
 
 func _set_ads(active: bool) -> void:
 	is_ads = active
+	_update_fov()
+	ads_changed.emit(is_ads)
+
+
+func _set_shoulder(active: bool) -> void:
+	is_shoulder = active
+	_update_fov()
+	shoulder_changed.emit(is_shoulder)
+
+
+func _update_fov() -> void:
 	if ads_tween:
 		ads_tween.kill()
 	var target_fov := BASE_FOV
 	if is_ads:
 		target_fov = BASE_FOV * WeaponData.get_ads_fov_mult(current_weapon_id)
+	elif is_shoulder:
+		target_fov = BASE_FOV * SHOULDER_FOV_MULT
 	ads_tween = create_tween()
 	ads_tween.tween_property(camera, "fov", target_fov, ADS_TWEEN_TIME)
-	ads_changed.emit(is_ads)
+
+
+func _current_sens_mult() -> float:
+	if is_ads:
+		return ADS_SENS_MULT
+	if is_shoulder:
+		return SHOULDER_SENS_MULT
+	return 1.0
 
 
 func get_current_fire_mode() -> String:
@@ -168,15 +194,19 @@ func _stance_recoil_multiplier() -> float:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and mouse_captured:
-		var ads_mult := ADS_SENS_MULT if is_ads else 1.0
-		rotate_y(-event.relative.x * MOUSE_SENS_BASE * sensitivity * ads_mult)
-		head.rotate_x(-event.relative.y * MOUSE_SENS_BASE * sensitivity * ads_mult)
+		var sens_mult := _current_sens_mult()
+		rotate_y(-event.relative.x * MOUSE_SENS_BASE * sensitivity * sens_mult)
+		head.rotate_x(-event.relative.y * MOUSE_SENS_BASE * sensitivity * sens_mult)
 		head.rotation.x = clamp(head.rotation.x, -PITCH_LIMIT, PITCH_LIMIT)
 
 	if event.is_action_pressed("ads") and mouse_captured:
 		_set_ads(true)
 	if event.is_action_released("ads"):
 		_set_ads(false)
+	if event.is_action_pressed("shoulder") and mouse_captured:
+		_set_shoulder(true)
+	if event.is_action_released("shoulder"):
+		_set_shoulder(false)
 
 	if event.is_action_pressed("fire") and mouse_captured:
 		shot_index = 0
@@ -223,6 +253,8 @@ func set_mouse_captured(value: bool) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if value else Input.MOUSE_MODE_VISIBLE
 	if not value and is_ads:
 		_set_ads(false)
+	if not value and is_shoulder:
+		_set_shoulder(false)
 
 
 func _physics_process(delta: float) -> void:
@@ -272,6 +304,8 @@ func _shoot_once() -> void:
 func _apply_recoil(i: int) -> void:
 	var r := WeaponData.get_shot_recoil(current_weapon_id, i)
 	var mult := _stance_recoil_multiplier()
+	if is_shoulder:
+		mult *= SHOULDER_RECOIL_MULT
 	head.rotate_x(deg_to_rad(r.x * mult))
 	head.rotation.x = clamp(head.rotation.x, -PITCH_LIMIT, PITCH_LIMIT)
 	rotate_y(deg_to_rad(-r.y * mult))
