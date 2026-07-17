@@ -29,7 +29,7 @@ const WEAPONS := {
 	"akm": {"name": "AKM", "category": "AR", "damage": 49, "rpm": 600, "magazine": 30,
 		"fire_modes": ["single", "auto"],
 		"recoil": {"vert_base": 0.95, "vert_growth": 0.09, "vert_cap": 2.6, "horiz_amp": 0.55, "horiz_bias": 0.3, "horiz_growth": 0.10, "kick_first": 1.3, "sustained": true}},
-	"m416": {"name": "M416", "category": "AR", "damage": 43, "rpm": 700, "magazine": 30,
+	"m416": {"name": "M416", "category": "AR", "damage": 43, "rpm": 1100, "magazine": 30,
 		"fire_modes": ["single", "auto"],
 		"recoil": {"vert_base": 0.55, "vert_growth": 0.045, "vert_cap": 1.8, "horiz_amp": 0.25, "horiz_bias": 0.0, "horiz_growth": 0.05, "kick_first": 1.1, "sustained": true}},
 	"scarl": {"name": "SCAR-L", "category": "AR", "damage": 43, "rpm": 600, "magazine": 30,
