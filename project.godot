@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="PUBG 에임 & 반동 연습장"
+config/name="PUBG 에임 반동 연습장"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
@@ -106,3 +106,4 @@ ui_release_mouse={
 [rendering]
 
 environment/defaults/default_clear_color=Color(0.4, 0.55, 0.65, 1)
+textures/vram_compression/import_etc2_astc=true
