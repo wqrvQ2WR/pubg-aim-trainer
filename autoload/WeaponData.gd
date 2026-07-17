@@ -215,18 +215,27 @@ func _weapon_seed(weapon_id: String) -> float:
 	return float(weapon_id.hash() % 100000)
 
 
+## 전체 무기 수직 반동 세기를 한번에 조절하는 배율 (튜닝용)
+const GLOBAL_VERT_SCALE := 0.5
+## 수직 반동에 섞이는 흔들림 크기 (climb 값 대비 비율) - 가끔 살짝 아래로도 튀게 함
+const VERT_WOBBLE_MULT := 1.15
+
+
 ## 특정 발사(shot_index, 0부터 시작)에서 카메라에 가할 반동을 (pitch_deg, yaw_deg)로 반환.
-## pitch는 항상 양수(위로 튐), yaw는 좌우.
+## pitch는 대체로 양수(위로 튐)이지만, 흔들림(wobble)으로 인해 가끔 소폭 음수(아래)가 나올 수 있음.
 func get_shot_recoil(weapon_id: String, shot_index: int) -> Vector2:
 	var w := get_weapon(weapon_id)
 	var r: Dictionary = w["recoil"]
 	var seed_v := _weapon_seed(weapon_id)
 
-	var growth_i: float = min(shot_index, 12)
+	var growth_i: float = min(shot_index, 8)
 	var vert_mult: float = 1.0
 	if r["sustained"]:
 		vert_mult = clamp(1.0 + growth_i * r["vert_growth"], 1.0, r["vert_cap"])
-	var vertical: float = r["vert_base"] * vert_mult
+	var climb: float = r["vert_base"] * vert_mult * GLOBAL_VERT_SCALE
+	var wobble_amp: float = climb * VERT_WOBBLE_MULT
+	var wobble := (_pseudo_rand(seed_v, shot_index, 7.0) * 2.0 - 1.0) * wobble_amp
+	var vertical: float = climb + wobble
 
 	var horiz_mult: float = 1.0
 	if r["sustained"]:
