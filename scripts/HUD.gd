@@ -6,6 +6,7 @@ var player: Node = null
 var weapon_name_label: Label
 var weapon_sub_label: Label
 var stance_label: Label
+var ads_label: Label
 var stats_label: Label
 var hint_label: Label
 
@@ -34,13 +35,18 @@ func _ready() -> void:
 	stance_label.text = "서기"
 	add_child(stance_label)
 
+	ads_label = _make_label(18, Color(1.0, 0.5, 0.35), HORIZONTAL_ALIGNMENT_LEFT)
+	_place(ads_label, Control.PRESET_TOP_LEFT, 24, 56, 224, 82)
+	ads_label.text = ""
+	add_child(ads_label)
+
 	stats_label = _make_label(18, Color(0.9, 0.9, 0.9), HORIZONTAL_ALIGNMENT_RIGHT)
 	_place(stats_label, Control.PRESET_TOP_RIGHT, -320, 24, -20, 104)
 	add_child(stats_label)
 
 	hint_label = _make_label(15, Color(0.85, 0.85, 0.85, 0.75), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(hint_label, Control.PRESET_TOP_WIDE, 0, 24, 0, 48)
-	hint_label.text = "Tab 무기선택 | P 설정 | R 재장전 | B 발사모드 | C 앉기 | Z 엎드리기 | Esc 마우스해제"
+	hint_label.text = "Tab 무기선택 | P 설정 | R 재장전 | B 발사모드 | 우클릭 조준(ADS) | C 앉기 | Z 엎드리기 | Esc 마우스해제"
 	add_child(hint_label)
 
 	if player:
@@ -50,6 +56,7 @@ func _ready() -> void:
 		player.fire_mode_changed.connect(_on_fire_mode_changed)
 		player.hit_registered.connect(_on_hit_registered)
 		player.shot_fired.connect(_on_shot_fired)
+		player.ads_changed.connect(_on_ads_changed)
 		_on_weapon_changed(player.current_weapon_id)
 
 	_update_stats()
@@ -99,6 +106,10 @@ func _refresh_sub_label() -> void:
 
 func _on_stance_changed(label: String) -> void:
 	stance_label.text = label
+
+
+func _on_ads_changed(active: bool) -> void:
+	ads_label.text = "조준 중" if active else ""
 
 
 func _on_shot_fired() -> void:

@@ -7,6 +7,7 @@ signal stance_changed(stance_label: String)
 signal fire_mode_changed(mode: String)
 signal hit_registered(is_kill: bool)
 signal shot_fired()
+signal ads_changed(active: bool)
 
 enum Stance { STAND, CROUCH, PRONE }
 
@@ -16,6 +17,9 @@ const SPEED_PRONE := 1.3
 const JUMP_VELOCITY := 6.0
 const MOUSE_SENS_BASE := 0.0022
 const PITCH_LIMIT := deg_to_rad(89.0)
+const BASE_FOV := 80.0
+const ADS_SENS_MULT := 0.55
+const ADS_TWEEN_TIME := 0.12
 
 const HEIGHT_STAND := 1.8
 const HEIGHT_CROUCH := 1.1
@@ -41,6 +45,8 @@ var auto_hold: bool = false
 var shots_remaining_in_trigger: int = 0
 
 var mouse_captured: bool = true
+var is_ads: bool = false
+var ads_tween: Tween
 
 
 func _ready() -> void:
@@ -50,7 +56,7 @@ func _ready() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera"
-	camera.fov = 80.0
+	camera.fov = BASE_FOV
 	head.add_child(camera)
 
 	capsule = CapsuleShape3D.new()
@@ -82,9 +88,22 @@ func set_weapon(id: String) -> void:
 	shot_index = 0
 	auto_hold = false
 	shots_remaining_in_trigger = 0
+	_set_ads(false)
 	weapon_changed.emit(id)
 	ammo_changed.emit(ammo_in_mag, w["magazine"])
 	fire_mode_changed.emit(get_current_fire_mode())
+
+
+func _set_ads(active: bool) -> void:
+	is_ads = active
+	if ads_tween:
+		ads_tween.kill()
+	var target_fov := BASE_FOV
+	if is_ads:
+		target_fov = BASE_FOV * WeaponData.get_ads_fov_mult(current_weapon_id)
+	ads_tween = create_tween()
+	ads_tween.tween_property(camera, "fov", target_fov, ADS_TWEEN_TIME)
+	ads_changed.emit(is_ads)
 
 
 func get_current_fire_mode() -> String:
@@ -149,9 +168,15 @@ func _stance_recoil_multiplier() -> float:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and mouse_captured:
-		rotate_y(-event.relative.x * MOUSE_SENS_BASE * sensitivity)
-		head.rotate_x(-event.relative.y * MOUSE_SENS_BASE * sensitivity)
+		var ads_mult := ADS_SENS_MULT if is_ads else 1.0
+		rotate_y(-event.relative.x * MOUSE_SENS_BASE * sensitivity * ads_mult)
+		head.rotate_x(-event.relative.y * MOUSE_SENS_BASE * sensitivity * ads_mult)
 		head.rotation.x = clamp(head.rotation.x, -PITCH_LIMIT, PITCH_LIMIT)
+
+	if event.is_action_pressed("ads") and mouse_captured:
+		_set_ads(true)
+	if event.is_action_released("ads"):
+		_set_ads(false)
 
 	if event.is_action_pressed("fire") and mouse_captured:
 		shot_index = 0
@@ -196,6 +221,8 @@ func _toggle_mouse_capture(force_release: bool = false) -> void:
 func set_mouse_captured(value: bool) -> void:
 	mouse_captured = value
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if value else Input.MOUSE_MODE_VISIBLE
+	if not value and is_ads:
+		_set_ads(false)
 
 
 func _physics_process(delta: float) -> void:

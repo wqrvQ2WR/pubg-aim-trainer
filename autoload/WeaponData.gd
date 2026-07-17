@@ -174,6 +174,23 @@ const WEAPONS := {
 
 const DEFAULT_WEAPON := "m416"
 
+## 카테고리별 조준(ADS) 시 FOV 배율 - 낮을수록 더 확대됨
+const ADS_FOV_MULT := {
+	"AR": 0.78,
+	"DMR": 0.55,
+	"SMG": 0.82,
+	"LMG": 0.8,
+	"SR": 0.35,
+	"PISTOL": 0.88,
+	"SHOTGUN": 0.88,
+}
+
+
+func get_ads_fov_mult(weapon_id: String) -> float:
+	var w := get_weapon(weapon_id)
+	var mult: float = ADS_FOV_MULT.get(w["category"], 0.8)
+	return mult
+
 
 func get_ids_by_category(category: String) -> Array:
 	var ids := []

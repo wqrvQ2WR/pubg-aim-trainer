@@ -81,12 +81,26 @@ func _build_grid() -> void:
 		for id in ids:
 			var w := WeaponData.get_weapon(id)
 			var btn := Button.new()
-			btn.custom_minimum_size = Vector2(210, 88)
-			btn.text = "%s\n%d dmg  ·  %d rpm" % [w["name"], w["damage"], w["rpm"]]
-			btn.add_theme_font_size_override("font_size", 17)
-			btn.clip_text = false
+			btn.custom_minimum_size = Vector2(210, 112)
+			btn.text = ""
 			btn.pressed.connect(_on_weapon_button_pressed.bind(id))
 			grid.add_child(btn)
+
+			var icon := Control.new()
+			icon.set_script(load("res://scripts/WeaponIcon.gd"))
+			icon.category = category
+			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			icon.position = Vector2(69, 10)
+			btn.add_child(icon)
+
+			var label := Label.new()
+			label.text = "%s\n%d dmg  ·  %d rpm" % [w["name"], w["damage"], w["rpm"]]
+			label.add_theme_font_size_override("font_size", 17)
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			label.position = Vector2(5, 54)
+			label.size = Vector2(200, 50)
+			btn.add_child(label)
 
 
 func _on_weapon_button_pressed(id: String) -> void:
