@@ -40,7 +40,7 @@ func _ready() -> void:
 
 	hint_label = _make_label(15, Color(0.85, 0.85, 0.85, 0.75), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(hint_label, Control.PRESET_TOP_WIDE, 0, 24, 0, 48)
-	hint_label.text = "Tab 무기선택 | P 설정 | R 재장전 | B 발사모드 | Ctrl 앉기 | Z 엎드리기 | Esc 마우스해제"
+	hint_label.text = "Tab 무기선택 | P 설정 | R 재장전 | B 발사모드 | C 앉기 | Z 엎드리기 | Esc 마우스해제"
 	add_child(hint_label)
 
 	if player:
