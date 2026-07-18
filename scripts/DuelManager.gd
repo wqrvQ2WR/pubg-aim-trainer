@@ -3,6 +3,7 @@ extends Node3D
 
 signal score_changed(player_kills: int, ai_kills: int)
 signal mode_changed(active: bool)
+signal difficulty_changed(level: String)
 
 const AIBotScript := preload("res://scripts/AIBot.gd")
 
@@ -12,6 +13,7 @@ var ai_bot: Node3D = null
 var mode_active: bool = false
 var player_kills: int = 0
 var ai_kills: int = 0
+var difficulty: String = "normal"
 
 
 func _ready() -> void:
@@ -22,6 +24,13 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("duel_toggle"):
 		toggle_mode()
+
+
+func set_difficulty(level: String) -> void:
+	difficulty = level
+	if ai_bot:
+		ai_bot.set_difficulty(level)
+	difficulty_changed.emit(level)
 
 
 func toggle_mode() -> void:
@@ -70,6 +79,7 @@ func _spawn_bot() -> void:
 	bot.player = player
 	bot.spawn_points = points
 	add_child(bot)
+	bot.set_difficulty(difficulty)
 	bot.ai_died.connect(_on_ai_died)
 	bot.spawn_at(points[randi() % points.size()])
 	ai_bot = bot

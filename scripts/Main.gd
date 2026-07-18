@@ -134,4 +134,5 @@ func _build_ui() -> void:
 	settings.set_script(load("res://scripts/SettingsUI.gd"))
 	settings.player = player
 	settings.range_manager = range_manager
+	settings.duel_manager = duel_manager
 	canvas.add_child(settings)

@@ -7,15 +7,9 @@ signal ai_died()
 signal ai_respawned()
 
 const MAX_HEALTH := 100
-const MOVE_SPEED := 3.6
-const TURN_SPEED := 3.5
 const ENGAGE_RANGE := 55.0
 const KEEP_DISTANCE_FAR := 24.0
 const KEEP_DISTANCE_NEAR := 9.0
-const FIRE_INTERVAL := 0.14
-const AIM_SPREAD_DEG := 2.6
-const REACTION_DELAY := 0.4
-const DAMAGE_PER_HIT := 18
 const RESPAWN_DELAY := 3.5
 const STRAFE_CHANGE_INTERVAL := 1.4
 const EYE_HEIGHT := 1.5
@@ -24,6 +18,21 @@ const COLOR_NORMAL := Color(0.75, 0.14, 0.12)
 const COLOR_HEAD := Color(0.85, 0.55, 0.5)
 const COLOR_FLASH := Color(1.0, 0.9, 0.2)
 const COLOR_DOWNED := Color(0.3, 0.3, 0.3)
+
+## 난이도별 파라미터 - 반응지연/탄퍼짐이 클수록, 연사간격이 길수록 약함
+const DIFFICULTY_PRESETS := {
+	"easy": {"reaction_delay": 0.95, "aim_spread_deg": 6.5, "fire_interval": 0.26, "damage_per_hit": 9, "move_speed": 2.3, "turn_speed": 2.0},
+	"normal": {"reaction_delay": 0.6, "aim_spread_deg": 4.2, "fire_interval": 0.19, "damage_per_hit": 13, "move_speed": 2.9, "turn_speed": 2.6},
+	"hard": {"reaction_delay": 0.4, "aim_spread_deg": 2.8, "fire_interval": 0.15, "damage_per_hit": 17, "move_speed": 3.4, "turn_speed": 3.2},
+}
+const DEFAULT_DIFFICULTY := "normal"
+
+var move_speed: float = 2.9
+var turn_speed: float = 2.6
+var fire_interval: float = 0.19
+var aim_spread_deg: float = 4.2
+var reaction_delay: float = 0.6
+var damage_per_hit: int = 13
 
 var health: int = MAX_HEALTH
 var is_dead: bool = false
@@ -128,6 +137,16 @@ func _make_hitbox(part: String, local_pos: Vector3) -> Area3D:
 	return area
 
 
+func set_difficulty(level: String) -> void:
+	var p: Dictionary = DIFFICULTY_PRESETS.get(level, DIFFICULTY_PRESETS[DEFAULT_DIFFICULTY])
+	reaction_delay = p["reaction_delay"]
+	aim_spread_deg = p["aim_spread_deg"]
+	fire_interval = p["fire_interval"]
+	damage_per_hit = p["damage_per_hit"]
+	move_speed = p["move_speed"]
+	turn_speed = p["turn_speed"]
+
+
 func spawn_at(pos: Vector3) -> void:
 	health = MAX_HEALTH
 	is_dead = false
@@ -213,7 +232,7 @@ func _shoot_at_player() -> void:
 	var target_pos: Vector3 = player.global_position + Vector3(0, randf_range(1.15, 1.6), 0)
 	var dir := (target_pos - eye_pos).normalized()
 
-	var spread := deg_to_rad(AIM_SPREAD_DEG)
+	var spread := deg_to_rad(aim_spread_deg)
 	var rand_yaw := (randf() * 2.0 - 1.0) * spread
 	var rand_pitch := (randf() * 2.0 - 1.0) * spread
 	var aim_basis := Basis.looking_at(dir, Vector3.UP)
@@ -224,7 +243,7 @@ func _shoot_at_player() -> void:
 	query.collision_mask = 1
 	var result := space_state.intersect_ray(query)
 	if result and result.has("collider") and result["collider"] == player and player.has_method("take_hit"):
-		player.take_hit(DAMAGE_PER_HIT, result["position"])
+		player.take_hit(damage_per_hit, result["position"])
 
 
 func _physics_process(delta: float) -> void:
@@ -250,7 +269,7 @@ func _physics_process(delta: float) -> void:
 		sight_timer += delta
 		var forward_dir := to_player.normalized()
 		var target_yaw := atan2(forward_dir.x, forward_dir.z)
-		rotation.y = lerp_angle(rotation.y, target_yaw, TURN_SPEED * delta)
+		rotation.y = lerp_angle(rotation.y, target_yaw, turn_speed * delta)
 
 		strafe_timer -= delta
 		if strafe_timer <= 0.0:
@@ -265,19 +284,19 @@ func _physics_process(delta: float) -> void:
 			move_vec -= forward_dir * 0.6
 		if move_vec.length() > 0.01:
 			move_vec = move_vec.normalized()
-			velocity.x = move_vec.x * MOVE_SPEED
-			velocity.z = move_vec.z * MOVE_SPEED
+			velocity.x = move_vec.x * move_speed
+			velocity.z = move_vec.z * move_speed
 		else:
 			velocity.x = 0.0
 			velocity.z = 0.0
 
 		fire_timer -= delta
-		if sight_timer > REACTION_DELAY and fire_timer <= 0.0:
+		if sight_timer > reaction_delay and fire_timer <= 0.0:
 			_shoot_at_player()
-			fire_timer = FIRE_INTERVAL
+			fire_timer = fire_interval
 	else:
 		sight_timer = 0.0
-		velocity.x = move_toward(velocity.x, 0.0, MOVE_SPEED * 4.0 * delta)
-		velocity.z = move_toward(velocity.z, 0.0, MOVE_SPEED * 4.0 * delta)
+		velocity.x = move_toward(velocity.x, 0.0, move_speed * 4.0 * delta)
+		velocity.z = move_toward(velocity.z, 0.0, move_speed * 4.0 * delta)
 
 	move_and_slide()

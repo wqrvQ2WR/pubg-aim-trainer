@@ -3,9 +3,12 @@ extends Control
 
 var player: Node = null
 var range_manager: Node = null
+var duel_manager: Node = null
 var is_open := false
 
 var sens_value_label: Label
+var difficulty_buttons: Dictionary = {}
+const DIFFICULTY_LABELS := {"easy": "쉬움", "normal": "보통", "hard": "어려움"}
 
 
 func _ready() -> void:
@@ -25,7 +28,7 @@ func _ready() -> void:
 
 	var panel := VBoxContainer.new()
 	panel.add_theme_constant_override("separation", 22)
-	_place(panel, Control.PRESET_CENTER, -260, -220, 260, 220)
+	_place(panel, Control.PRESET_CENTER, -260, -270, 260, 270)
 	add_child(panel)
 
 	var title := Label.new()
@@ -69,6 +72,26 @@ func _ready() -> void:
 	sens_value_label.custom_minimum_size = Vector2(60, 0)
 	sens_row.add_child(sens_value_label)
 
+	var diff_header := Label.new()
+	diff_header.text = "AI 대전 난이도"
+	diff_header.add_theme_font_size_override("font_size", 20)
+	diff_header.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4))
+	panel.add_child(diff_header)
+
+	var diff_row := HBoxContainer.new()
+	diff_row.add_theme_constant_override("separation", 10)
+	panel.add_child(diff_row)
+
+	for level in ["easy", "normal", "hard"]:
+		var btn := Button.new()
+		btn.text = DIFFICULTY_LABELS[level]
+		btn.custom_minimum_size = Vector2(110, 40)
+		btn.toggle_mode = true
+		btn.button_pressed = (level == "normal")
+		btn.pressed.connect(_on_difficulty_pressed.bind(level))
+		diff_row.add_child(btn)
+		difficulty_buttons[level] = btn
+
 
 func _add_target_toggle(parent: VBoxContainer, label_text: String, target_type: int) -> void:
 	var cb := CheckButton.new()
@@ -82,6 +105,13 @@ func _add_target_toggle(parent: VBoxContainer, label_text: String, target_type: 
 func _on_target_toggle(pressed: bool, target_type: int) -> void:
 	if range_manager:
 		range_manager.set_type_enabled(target_type, pressed)
+
+
+func _on_difficulty_pressed(level: String) -> void:
+	for key in difficulty_buttons.keys():
+		(difficulty_buttons[key] as Button).button_pressed = (key == level)
+	if duel_manager:
+		duel_manager.set_difficulty(level)
 
 
 func _on_sensitivity_changed(value: float) -> void:
