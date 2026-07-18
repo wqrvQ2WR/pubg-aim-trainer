@@ -49,6 +49,7 @@ func start_mode() -> void:
 	score_changed.emit(player_kills, ai_kills)
 
 	if player:
+		player.set_terrain_height_provider(arena)
 		player.set_temp_spawn(arena.player_start)
 		player.teleport_to(arena.player_start)
 		player.heal_full()
@@ -63,6 +64,7 @@ func stop_mode() -> void:
 		ai_bot.queue_free()
 		ai_bot = null
 	if player:
+		player.set_terrain_height_provider(null)
 		player.clear_temp_spawn()
 		player.teleport_to(player.spawn_position)
 		player.heal_full()
@@ -78,6 +80,7 @@ func _spawn_bot() -> void:
 	bot.set_script(AIBotScript)
 	bot.player = player
 	bot.spawn_points = points
+	bot.terrain_provider = arena
 	add_child(bot)
 	bot.set_difficulty(difficulty)
 	bot.ai_died.connect(_on_ai_died)

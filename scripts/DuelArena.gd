@@ -80,12 +80,9 @@ func _build_terrain() -> void:
 	mesh_inst.mesh = mesh
 	mesh_inst.material_override = mat
 	add_child(mesh_inst)
-
-	var body := StaticBody3D.new()
-	var coll := CollisionShape3D.new()
-	coll.shape = mesh.create_trimesh_shape()
-	body.add_child(coll)
-	add_child(body)
+	# 지형은 시각적 메시만 두고 물리 충돌은 만들지 않는다. 굴곡진 trimesh
+	# 충돌체는 캐릭터 캡슐이 경사면 이음새에 끼는 문제를 일으킬 수 있어서,
+	# 대신 Player/AIBot이 height_at_world()로 매 프레임 높이를 직접 스냅한다.
 
 
 func _build_walls() -> void:

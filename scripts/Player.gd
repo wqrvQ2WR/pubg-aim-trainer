@@ -68,6 +68,8 @@ var is_dead: bool = false
 var spawn_position: Vector3
 var temp_spawn: Vector3 = Vector3.ZERO
 var has_temp_spawn: bool = false
+var terrain_height_provider: Node = null
+const GROUND_CLEARANCE := 0.02
 
 
 func _ready() -> void:
@@ -117,6 +119,10 @@ func clear_temp_spawn() -> void:
 func heal_full() -> void:
 	health = MAX_HEALTH
 	health_changed.emit(health, MAX_HEALTH)
+
+
+func set_terrain_height_provider(provider: Node) -> void:
+	terrain_height_provider = provider
 
 
 func teleport_to(pos: Vector3) -> void:
@@ -453,13 +459,16 @@ func set_mouse_captured(value: bool) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not is_on_floor():
+	if terrain_height_provider:
+		velocity.y = 0.0
+	elif not is_on_floor():
 		velocity.y -= 20.0 * delta
 
 	if is_dead:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		move_and_slide()
+		_snap_to_terrain()
 		return
 
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -487,7 +496,15 @@ func _physics_process(delta: float) -> void:
 		velocity.z = move_toward(velocity.z, 0, speed * 6.0 * delta)
 
 	move_and_slide()
+	_snap_to_terrain()
 	_process_firing(delta)
+
+
+func _snap_to_terrain() -> void:
+	if not terrain_height_provider:
+		return
+	var h: float = terrain_height_provider.height_at_world(global_position.x, global_position.z)
+	global_position.y = h + GROUND_CLEARANCE
 
 
 func _process_firing(delta: float) -> void:

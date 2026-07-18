@@ -38,6 +38,8 @@ var health: int = MAX_HEALTH
 var is_dead: bool = false
 var player: Node3D = null
 var spawn_points: Array = []
+var terrain_provider: Node = null
+const GROUND_CLEARANCE := 0.02
 
 var fire_timer: float = 0.0
 var sight_timer: float = 0.0
@@ -247,13 +249,16 @@ func _shoot_at_player() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not is_on_floor():
+	if terrain_provider:
+		velocity.y = 0.0
+	elif not is_on_floor():
 		velocity.y -= 20.0 * delta
 
 	if is_dead or not player or player.is_dead:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		move_and_slide()
+		_snap_to_terrain()
 		return
 
 	var to_player := player.global_position - global_position
@@ -296,7 +301,22 @@ func _physics_process(delta: float) -> void:
 			fire_timer = fire_interval
 	else:
 		sight_timer = 0.0
-		velocity.x = move_toward(velocity.x, 0.0, move_speed * 4.0 * delta)
-		velocity.z = move_toward(velocity.z, 0.0, move_speed * 4.0 * delta)
+		if dist > 1.5:
+			var seek_dir := to_player.normalized()
+			velocity.x = seek_dir.x * move_speed * 0.8
+			velocity.z = seek_dir.z * move_speed * 0.8
+			var seek_yaw := atan2(seek_dir.x, seek_dir.z)
+			rotation.y = lerp_angle(rotation.y, seek_yaw, turn_speed * delta)
+		else:
+			velocity.x = 0.0
+			velocity.z = 0.0
 
 	move_and_slide()
+	_snap_to_terrain()
+
+
+func _snap_to_terrain() -> void:
+	if not terrain_provider:
+		return
+	var h: float = terrain_provider.height_at_world(global_position.x, global_position.z)
+	global_position.y = h + GROUND_CLEARANCE
