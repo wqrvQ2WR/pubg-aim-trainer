@@ -3,12 +3,14 @@ extends Node3D
 
 var player: CharacterBody3D
 var range_manager: Node3D
+var duel_manager: Node3D
 
 
 func _ready() -> void:
 	_build_environment()
 	_build_player()
 	_build_range()
+	_build_duel()
 	_build_ui()
 
 
@@ -99,6 +101,14 @@ func _build_range() -> void:
 	add_child(range_manager)
 
 
+func _build_duel() -> void:
+	duel_manager = Node3D.new()
+	duel_manager.name = "DuelManager"
+	duel_manager.set_script(load("res://scripts/DuelManager.gd"))
+	duel_manager.player = player
+	add_child(duel_manager)
+
+
 func _build_ui() -> void:
 	var canvas := CanvasLayer.new()
 	add_child(canvas)
@@ -106,6 +116,7 @@ func _build_ui() -> void:
 	var hud := Control.new()
 	hud.set_script(load("res://scripts/HUD.gd"))
 	hud.player = player
+	hud.duel_manager = duel_manager
 	canvas.add_child(hud)
 
 	var weapon_select := Control.new()

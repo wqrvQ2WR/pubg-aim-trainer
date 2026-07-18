@@ -2,6 +2,7 @@ extends Control
 ## 크로스헤어, 무기명, 탄약, 자세, 명중 통계를 표시하는 HUD
 
 var player: Node = null
+var duel_manager: Node = null
 
 var weapon_name_label: Label
 var weapon_sub_label: Label
@@ -10,6 +11,13 @@ var ads_label: Label
 var shoulder_label: Label
 var stats_label: Label
 var hint_label: Label
+var health_bg: ColorRect
+var health_fill: ColorRect
+var health_label: Label
+var duel_score_label: Label
+var death_label: Label
+
+const HEALTH_BAR_WIDTH := 224.0
 
 var shots := 0
 var hits := 0
@@ -56,8 +64,34 @@ func _ready() -> void:
 
 	hint_label = _make_label(15, Color(0.85, 0.85, 0.85, 0.75), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(hint_label, Control.PRESET_TOP_WIDE, 0, 24, 0, 48)
-	hint_label.text = "Tab 무기선택 | P 설정 | R 재장전 | B 발사모드 | 우클릭 줌(ADS) | 마우스4 견착 | C 앉기 | Z 엎드리기 | Esc 마우스해제"
+	hint_label.text = "Tab 무기선택 | P 설정 | R 재장전 | B 발사모드 | 우클릭 줌(ADS) | 마우스4 견착 | C 앉기 | Z 엎드리기 | N AI 대전 | Esc 마우스해제"
 	add_child(hint_label)
+
+	health_bg = ColorRect.new()
+	health_bg.color = Color(0.12, 0.12, 0.12, 0.85)
+	_place(health_bg, Control.PRESET_CENTER_BOTTOM, -112, -150, 112, -128)
+	add_child(health_bg)
+
+	health_fill = ColorRect.new()
+	health_fill.color = Color(0.3, 0.85, 0.35, 0.95)
+	_place(health_fill, Control.PRESET_CENTER_BOTTOM, -112, -150, 112, -128)
+	add_child(health_fill)
+
+	health_label = _make_label(14, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
+	_place(health_label, Control.PRESET_CENTER_BOTTOM, -112, -150, 112, -128)
+	add_child(health_label)
+
+	duel_score_label = _make_label(20, Color(1.0, 0.85, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
+	_place(duel_score_label, Control.PRESET_TOP_WIDE, 0, 52, 0, 78)
+	duel_score_label.text = ""
+	add_child(duel_score_label)
+
+	death_label = _make_label(48, Color(1.0, 0.2, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_place(death_label, Control.PRESET_CENTER, -300, -80, 300, -20)
+	death_label.text = ""
+	add_child(death_label)
+
+	_update_health_bar(player.health if player else 100, 100)
 
 	if player:
 		player.weapon_changed.connect(_on_weapon_changed)
@@ -68,7 +102,14 @@ func _ready() -> void:
 		player.shot_fired.connect(_on_shot_fired)
 		player.ads_changed.connect(_on_ads_changed)
 		player.shoulder_changed.connect(_on_shoulder_changed)
+		player.health_changed.connect(_update_health_bar)
+		player.died.connect(_on_player_died)
+		player.respawned.connect(_on_player_respawned)
 		_on_weapon_changed(player.current_weapon_id)
+
+	if duel_manager:
+		duel_manager.score_changed.connect(_on_score_changed)
+		duel_manager.mode_changed.connect(_on_duel_mode_changed)
 
 	_update_stats()
 
@@ -126,6 +167,31 @@ func _on_ads_changed(active: bool) -> void:
 
 func _on_shoulder_changed(active: bool) -> void:
 	shoulder_label.text = "견착 중" if active else ""
+
+
+func _update_health_bar(current: int, max_health: int) -> void:
+	var frac: float = clamp(float(current) / float(max_health), 0.0, 1.0)
+	health_fill.offset_right = health_fill.offset_left + HEALTH_BAR_WIDTH * frac
+	health_fill.color = Color(0.3, 0.85, 0.35, 0.95) if frac > 0.3 else Color(0.85, 0.3, 0.25, 0.95)
+	health_label.text = "%d / %d" % [max(current, 0), max_health]
+
+
+func _on_player_died() -> void:
+	death_label.text = "사망!"
+
+
+func _on_player_respawned() -> void:
+	death_label.text = ""
+
+
+func _on_score_changed(player_kills: int, ai_kills: int) -> void:
+	duel_score_label.text = "AI 대전   나 %d  :  %d AI" % [player_kills, ai_kills]
+
+
+func _on_duel_mode_changed(active: bool) -> void:
+	if not active:
+		duel_score_label.text = ""
+		death_label.text = ""
 
 
 func _on_shot_fired() -> void:

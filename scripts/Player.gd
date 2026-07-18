@@ -9,6 +9,9 @@ signal hit_registered(is_kill: bool)
 signal shot_fired()
 signal ads_changed(active: bool)
 signal shoulder_changed(active: bool)
+signal health_changed(current: int, max_health: int)
+signal died()
+signal respawned()
 
 enum Stance { STAND, CROUCH, PRONE }
 
@@ -25,6 +28,8 @@ const ADS_TWEEN_TIME := 0.12
 const SHOULDER_FOV_MULT := 0.92
 const SHOULDER_SENS_MULT := 0.8
 const SHOULDER_RECOIL_MULT := 0.8
+const MAX_HEALTH := 100
+const RESPAWN_DELAY := 3.0
 
 const HEIGHT_STAND := 1.8
 const HEIGHT_CROUCH := 1.1
@@ -58,6 +63,10 @@ var ads_tween: Tween
 var chamber_tween: Tween
 var is_reloading: bool = false
 
+var health: int = MAX_HEALTH
+var is_dead: bool = false
+var spawn_position: Vector3
+
 
 func _ready() -> void:
 	head = Node3D.new()
@@ -87,10 +96,53 @@ func _ready() -> void:
 	set_weapon(WeaponData.DEFAULT_WEAPON)
 	_apply_stance_visuals()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	spawn_position = global_position
 
 
 func set_sensitivity(v: float) -> void:
 	sensitivity = v
+
+
+func take_hit(damage: int, _hit_pos: Vector3 = Vector3.ZERO) -> bool:
+	if is_dead:
+		return false
+	health -= damage
+	health_changed.emit(health, MAX_HEALTH)
+	if health <= 0:
+		_die()
+		return true
+	return false
+
+
+func _die() -> void:
+	is_dead = true
+	auto_hold = false
+	shots_remaining_in_trigger = 0
+	_set_ads(false)
+	_set_shoulder(false)
+	died.emit()
+	get_tree().create_timer(RESPAWN_DELAY).timeout.connect(_respawn)
+
+
+func _respawn() -> void:
+	health = MAX_HEALTH
+	is_dead = false
+	global_position = spawn_position
+	velocity = Vector3.ZERO
+	rotation.y = 0.0
+	head.rotation.x = 0.0
+	set_stance(Stance.STAND)
+	is_reloading = false
+	if chamber_tween:
+		chamber_tween.kill()
+		gun_holder.rotation = Vector3.ZERO
+		gun_holder.position = Vector3(0.28, -0.28, -0.6)
+	var w := WeaponData.get_weapon(current_weapon_id)
+	ammo_in_mag = w["magazine"]
+	shot_index = 0
+	ammo_changed.emit(ammo_in_mag, w["magazine"])
+	health_changed.emit(health, MAX_HEALTH)
+	respawned.emit()
 
 
 func set_weapon(id: String) -> void:
@@ -293,6 +345,8 @@ func _current_spread_deg() -> float:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if is_dead:
+		return
 	if event is InputEventMouseMotion and mouse_captured:
 		var sens_mult := _current_sens_mult()
 		rotate_y(-event.relative.x * MOUSE_SENS_BASE * sensitivity * sens_mult)
@@ -381,6 +435,12 @@ func set_mouse_captured(value: bool) -> void:
 func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
+
+	if is_dead:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		return
 
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 
@@ -471,6 +531,7 @@ func _do_hit_raycast() -> void:
 		var query := PhysicsRayQueryParameters3D.create(origin, to)
 		query.collide_with_areas = true
 		query.collide_with_bodies = true
+		query.collision_mask = 1 | 4  # 환경/벽(1) + 표적·AI 히트박스(4). AI 물리바디(16)는 제외해 판정이 항상 히트박스로 가도록 함
 		var result := space_state.intersect_ray(query)
 		if result and result.has("collider") and result["collider"] and result["collider"].has_method("take_hit"):
 			var dmg: int = w["damage"]
