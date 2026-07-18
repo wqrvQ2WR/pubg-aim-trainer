@@ -6,13 +6,8 @@ signal mode_changed(active: bool)
 
 const AIBotScript := preload("res://scripts/AIBot.gd")
 
-const SPAWN_POINTS := [
-	Vector3(-10, 0, -30), Vector3(10, 0, -30), Vector3(0, 0, -45),
-	Vector3(-14, 0, -60), Vector3(14, 0, -60), Vector3(0, 0, -20),
-	Vector3(-6, 0, -75), Vector3(6, 0, -75),
-]
-
 var player: Node = null
+var arena: Node3D = null
 var ai_bot: Node3D = null
 var mode_active: bool = false
 var player_kills: int = 0
@@ -37,10 +32,18 @@ func toggle_mode() -> void:
 
 
 func start_mode() -> void:
+	if not arena:
+		return
 	mode_active = true
 	player_kills = 0
 	ai_kills = 0
 	score_changed.emit(player_kills, ai_kills)
+
+	if player:
+		player.set_temp_spawn(arena.player_start)
+		player.teleport_to(arena.player_start)
+		player.heal_full()
+
 	_spawn_bot()
 	mode_changed.emit(true)
 
@@ -50,6 +53,10 @@ func stop_mode() -> void:
 	if ai_bot:
 		ai_bot.queue_free()
 		ai_bot = null
+	if player:
+		player.clear_temp_spawn()
+		player.teleport_to(player.spawn_position)
+		player.heal_full()
 	mode_changed.emit(false)
 
 
@@ -57,13 +64,14 @@ func _spawn_bot() -> void:
 	if ai_bot:
 		ai_bot.queue_free()
 		ai_bot = null
+	var points: Array = arena.spawn_points
 	var bot := CharacterBody3D.new()
 	bot.set_script(AIBotScript)
 	bot.player = player
-	bot.spawn_points = SPAWN_POINTS
+	bot.spawn_points = points
 	add_child(bot)
 	bot.ai_died.connect(_on_ai_died)
-	bot.spawn_at(SPAWN_POINTS[randi() % SPAWN_POINTS.size()])
+	bot.spawn_at(points[randi() % points.size()])
 	ai_bot = bot
 
 

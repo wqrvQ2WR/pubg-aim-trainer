@@ -66,6 +66,8 @@ var is_reloading: bool = false
 var health: int = MAX_HEALTH
 var is_dead: bool = false
 var spawn_position: Vector3
+var temp_spawn: Vector3 = Vector3.ZERO
+var has_temp_spawn: bool = false
 
 
 func _ready() -> void:
@@ -103,6 +105,27 @@ func set_sensitivity(v: float) -> void:
 	sensitivity = v
 
 
+func set_temp_spawn(pos: Vector3) -> void:
+	temp_spawn = pos
+	has_temp_spawn = true
+
+
+func clear_temp_spawn() -> void:
+	has_temp_spawn = false
+
+
+func heal_full() -> void:
+	health = MAX_HEALTH
+	health_changed.emit(health, MAX_HEALTH)
+
+
+func teleport_to(pos: Vector3) -> void:
+	global_position = pos
+	velocity = Vector3.ZERO
+	rotation.y = 0.0
+	head.rotation.x = 0.0
+
+
 func take_hit(damage: int, _hit_pos: Vector3 = Vector3.ZERO) -> bool:
 	if is_dead:
 		return false
@@ -127,10 +150,7 @@ func _die() -> void:
 func _respawn() -> void:
 	health = MAX_HEALTH
 	is_dead = false
-	global_position = spawn_position
-	velocity = Vector3.ZERO
-	rotation.y = 0.0
-	head.rotation.x = 0.0
+	teleport_to(temp_spawn if has_temp_spawn else spawn_position)
 	set_stance(Stance.STAND)
 	is_reloading = false
 	if chamber_tween:

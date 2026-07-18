@@ -102,10 +102,16 @@ func _build_range() -> void:
 
 
 func _build_duel() -> void:
+	var arena := Node3D.new()
+	arena.name = "DuelArena"
+	arena.set_script(load("res://scripts/DuelArena.gd"))
+	add_child(arena)
+
 	duel_manager = Node3D.new()
 	duel_manager.name = "DuelManager"
 	duel_manager.set_script(load("res://scripts/DuelManager.gd"))
 	duel_manager.player = player
+	duel_manager.arena = arena
 	add_child(duel_manager)
 
 
