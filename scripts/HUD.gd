@@ -14,10 +14,14 @@ var hint_label: Label
 var health_bg: ColorRect
 var health_fill: ColorRect
 var health_label: Label
+var boost_bg: ColorRect
+var boost_fill: ColorRect
+var item_use_label: Label
 var duel_score_label: Label
 var death_label: Label
 
 const HEALTH_BAR_WIDTH := 224.0
+const BOOST_BAR_WIDTH := 224.0
 
 var shots := 0
 var hits := 0
@@ -25,6 +29,10 @@ var kills := 0
 
 var hit_flash_t := 0.0
 const HIT_FLASH_DURATION := 0.15
+
+var item_use_remaining := 0.0
+var item_use_total := 0.0
+var item_use_name := ""
 
 
 func _ready() -> void:
@@ -64,7 +72,7 @@ func _ready() -> void:
 
 	hint_label = _make_label(15, Color(0.85, 0.85, 0.85, 0.75), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(hint_label, Control.PRESET_TOP_WIDE, 0, 24, 0, 48)
-	hint_label.text = "Tab 무기선택 | P 설정 | R 재장전 | B 발사모드 | 우클릭 줌(ADS) | 마우스4 견착 | C 앉기 | Z 엎드리기 | N AI 대전 | Esc 마우스해제"
+	hint_label.text = "Tab 무기선택 | P 설정 | R 재장전 | B 발사모드 | 우클릭 줌(ADS) | 마우스4 견착 | C 앉기 | Z 엎드리기 | N AI 대전 | 4-6 회복 | 7-9 부스트 | Esc 마우스해제"
 	add_child(hint_label)
 
 	health_bg = ColorRect.new()
@@ -80,6 +88,21 @@ func _ready() -> void:
 	health_label = _make_label(14, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
 	_place(health_label, Control.PRESET_CENTER_BOTTOM, -112, -150, 112, -128)
 	add_child(health_label)
+
+	boost_bg = ColorRect.new()
+	boost_bg.color = Color(0.12, 0.12, 0.12, 0.85)
+	_place(boost_bg, Control.PRESET_CENTER_BOTTOM, -112, -174, 112, -156)
+	add_child(boost_bg)
+
+	boost_fill = ColorRect.new()
+	boost_fill.color = Color(0.95, 0.8, 0.2, 0.95)
+	_place(boost_fill, Control.PRESET_CENTER_BOTTOM, -112, -174, -112, -156)
+	add_child(boost_fill)
+
+	item_use_label = _make_label(20, Color(0.9, 0.95, 1.0), HORIZONTAL_ALIGNMENT_CENTER)
+	_place(item_use_label, Control.PRESET_CENTER_BOTTOM, -200, -210, 200, -180)
+	item_use_label.text = ""
+	add_child(item_use_label)
 
 	duel_score_label = _make_label(20, Color(1.0, 0.85, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(duel_score_label, Control.PRESET_TOP_WIDE, 0, 52, 0, 78)
@@ -105,7 +128,12 @@ func _ready() -> void:
 		player.health_changed.connect(_update_health_bar)
 		player.died.connect(_on_player_died)
 		player.respawned.connect(_on_player_respawned)
+		player.boost_changed.connect(_update_boost_bar)
+		player.item_use_started.connect(_on_item_use_started)
+		player.item_use_finished.connect(_on_item_use_ended)
+		player.item_use_cancelled.connect(_on_item_use_ended)
 		_on_weapon_changed(player.current_weapon_id)
+		_update_boost_bar(0.0, 100.0)
 
 	if duel_manager:
 		duel_manager.score_changed.connect(_on_score_changed)
@@ -176,6 +204,24 @@ func _update_health_bar(current: int, max_health: int) -> void:
 	health_label.text = "%d / %d" % [max(current, 0), max_health]
 
 
+func _update_boost_bar(current: float, max_boost: float) -> void:
+	var frac: float = clamp(current / max_boost, 0.0, 1.0)
+	boost_fill.offset_right = boost_fill.offset_left + BOOST_BAR_WIDTH * frac
+
+
+func _on_item_use_started(item_name: String, use_time: float) -> void:
+	item_use_name = item_name
+	item_use_total = use_time
+	item_use_remaining = use_time
+	item_use_label.text = "%s 사용 중... (%.1fs)" % [item_use_name, item_use_remaining]
+
+
+func _on_item_use_ended() -> void:
+	item_use_total = 0.0
+	item_use_remaining = 0.0
+	item_use_label.text = ""
+
+
 func _on_player_died() -> void:
 	death_label.text = "사망!"
 
@@ -217,6 +263,9 @@ func _update_stats() -> void:
 func _process(delta: float) -> void:
 	if hit_flash_t > 0.0:
 		hit_flash_t -= delta
+	if item_use_total > 0.0:
+		item_use_remaining = max(item_use_remaining - delta, 0.0)
+		item_use_label.text = "%s 사용 중... (%.1fs)" % [item_use_name, item_use_remaining]
 	queue_redraw()
 
 

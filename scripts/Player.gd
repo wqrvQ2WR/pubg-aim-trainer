@@ -12,6 +12,10 @@ signal shoulder_changed(active: bool)
 signal health_changed(current: int, max_health: int)
 signal died()
 signal respawned()
+signal boost_changed(current: float, max_boost: float)
+signal item_use_started(item_name: String, use_time: float)
+signal item_use_finished()
+signal item_use_cancelled()
 
 enum Stance { STAND, CROUCH, PRONE }
 
@@ -30,6 +34,22 @@ const SHOULDER_SENS_MULT := 0.8
 const SHOULDER_RECOIL_MULT := 0.8
 const MAX_HEALTH := 100
 const RESPAWN_DELAY := 3.0
+
+const MAX_BOOST := 100.0
+const BOOST_REGEN_RATE := 3.0
+const BOOST_DRAIN_PER_SEC := MAX_BOOST / 60.0
+
+## 4~6번 키: 회복 아이템 (붕대/구급상자/의료 키트) - amount만큼 체력을 채우되 cap을 넘지 않음
+## 7~9번 키: 부스트 아이템 (진통제/에너지드링크/아드레날린 주사기) - 부스트 게이지를 채우고,
+## 게이지가 0보다 크면 체력이 서서히 자연회복된다. 에너지드링크/아드레날린은 이동속도도 잠시 올려준다.
+const ITEMS := {
+	"item_4": {"name": "붕대", "heal_amount": 25, "heal_cap": 75, "boost_amount": 0.0, "speed_bonus": 0.0, "speed_duration": 0.0, "use_time": 4.0},
+	"item_5": {"name": "구급상자", "heal_amount": 100, "heal_cap": 100, "boost_amount": 0.0, "speed_bonus": 0.0, "speed_duration": 0.0, "use_time": 6.0},
+	"item_6": {"name": "의료 키트", "heal_amount": 100, "heal_cap": 100, "boost_amount": 100.0, "speed_bonus": 0.0, "speed_duration": 0.0, "use_time": 8.0},
+	"item_7": {"name": "진통제", "heal_amount": 0, "heal_cap": 100, "boost_amount": 40.0, "speed_bonus": 0.0, "speed_duration": 0.0, "use_time": 4.0},
+	"item_8": {"name": "에너지드링크", "heal_amount": 0, "heal_cap": 100, "boost_amount": 40.0, "speed_bonus": 0.1, "speed_duration": 20.0, "use_time": 3.0},
+	"item_9": {"name": "아드레날린 주사기", "heal_amount": 0, "heal_cap": 100, "boost_amount": 100.0, "speed_bonus": 0.1, "speed_duration": 30.0, "use_time": 6.0},
+}
 
 const HEIGHT_STAND := 1.8
 const HEIGHT_CROUCH := 1.1
@@ -70,6 +90,13 @@ var temp_spawn: Vector3 = Vector3.ZERO
 var has_temp_spawn: bool = false
 var terrain_height_provider: Node = null
 const GROUND_CLEARANCE := 0.02
+
+var boost: float = 0.0
+var _boost_heal_accum: float = 0.0
+var is_using_item: bool = false
+var item_tween: Tween
+var speed_boost_mult: float = 1.0
+var speed_boost_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -135,6 +162,7 @@ func teleport_to(pos: Vector3) -> void:
 func take_hit(damage: int, _hit_pos: Vector3 = Vector3.ZERO) -> bool:
 	if is_dead:
 		return false
+	_cancel_item_use()
 	health -= damage
 	health_changed.emit(health, MAX_HEALTH)
 	if health <= 0:
@@ -149,6 +177,7 @@ func _die() -> void:
 	shots_remaining_in_trigger = 0
 	_set_ads(false)
 	_set_shoulder(false)
+	_cancel_item_use()
 	died.emit()
 	get_tree().create_timer(RESPAWN_DELAY).timeout.connect(_respawn)
 
@@ -156,6 +185,11 @@ func _die() -> void:
 func _respawn() -> void:
 	health = MAX_HEALTH
 	is_dead = false
+	boost = 0.0
+	_boost_heal_accum = 0.0
+	speed_boost_mult = 1.0
+	speed_boost_timer = 0.0
+	boost_changed.emit(boost, MAX_BOOST)
 	teleport_to(temp_spawn if has_temp_spawn else spawn_position)
 	set_stance(Stance.STAND)
 	is_reloading = false
@@ -302,6 +336,54 @@ func reload() -> void:
 	)
 
 
+func try_use_item(key: String) -> void:
+	if is_dead or is_reloading or is_using_item:
+		return
+	var item: Dictionary = ITEMS.get(key, {})
+	if item.is_empty():
+		return
+	var can_heal: bool = item["heal_amount"] > 0 and health < item["heal_cap"]
+	var can_boost: bool = item["boost_amount"] > 0.0 and boost < MAX_BOOST
+	if not can_heal and not can_boost:
+		return
+
+	is_using_item = true
+	_set_ads(false)
+	_set_shoulder(false)
+	auto_hold = false
+	shots_remaining_in_trigger = 0
+	item_use_started.emit(item["name"], item["use_time"])
+
+	if item_tween:
+		item_tween.kill()
+	item_tween = create_tween()
+	item_tween.tween_interval(item["use_time"])
+	item_tween.tween_callback(_finish_item_use.bind(item))
+
+
+func _finish_item_use(item: Dictionary) -> void:
+	is_using_item = false
+	if item["heal_amount"] > 0:
+		health = min(health + int(item["heal_amount"]), int(item["heal_cap"]))
+		health_changed.emit(health, MAX_HEALTH)
+	if item["boost_amount"] > 0.0:
+		boost = min(boost + float(item["boost_amount"]), MAX_BOOST)
+		boost_changed.emit(boost, MAX_BOOST)
+	if item["speed_bonus"] > 0.0:
+		speed_boost_mult = 1.0 + float(item["speed_bonus"])
+		speed_boost_timer = float(item["speed_duration"])
+	item_use_finished.emit()
+
+
+func _cancel_item_use() -> void:
+	if not is_using_item:
+		return
+	is_using_item = false
+	if item_tween:
+		item_tween.kill()
+	item_use_cancelled.emit()
+
+
 func set_stance(new_stance: int) -> void:
 	if stance == new_stance:
 		return
@@ -380,18 +462,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		head.rotation.x = clamp(head.rotation.x, -PITCH_LIMIT, PITCH_LIMIT)
 
 	if event.is_action_pressed("ads") and mouse_captured:
-		if not is_reloading:
+		if not is_reloading and not is_using_item:
 			_set_ads(true)
 	if event.is_action_released("ads"):
 		_set_ads(false)
 	if event.is_action_pressed("shoulder") and mouse_captured:
-		if not is_reloading:
+		if not is_reloading and not is_using_item:
 			_set_shoulder(true)
 	if event.is_action_released("shoulder"):
 		_set_shoulder(false)
 
 	if event.is_action_pressed("fire") and mouse_captured:
-		if is_reloading:
+		if is_reloading or is_using_item:
 			return
 		if ammo_in_mag <= 0:
 			reload()
@@ -409,10 +491,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		auto_hold = false
 		shots_remaining_in_trigger = 0
 
-	if event.is_action_pressed("reload"):
+	if event.is_action_pressed("reload") and not is_using_item:
 		reload()
 	if event.is_action_pressed("fire_mode_switch"):
 		cycle_fire_mode()
+	if mouse_captured:
+		for key in ["item_4", "item_5", "item_6", "item_7", "item_8", "item_9"]:
+			if event.is_action_pressed(key):
+				try_use_item(key)
 	if event.is_action_pressed("crouch"):
 		set_stance(Stance.STAND if stance == Stance.CROUCH else Stance.CROUCH)
 	if event.is_action_pressed("prone"):
@@ -471,10 +557,12 @@ func _physics_process(delta: float) -> void:
 		_snap_to_terrain()
 		return
 
+	_process_boost(delta)
+
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 
 	# Sprint validation
-	if is_sprinting and (input_dir.length() <= 0.01 or stance != Stance.STAND or is_ads or is_shoulder or is_reloading):
+	if is_sprinting and (input_dir.length() <= 0.01 or stance != Stance.STAND or is_ads or is_shoulder or is_reloading or is_using_item):
 		is_sprinting = false
 	if is_sprinting:
 		auto_hold = false
@@ -487,6 +575,7 @@ func _physics_process(delta: float) -> void:
 		speed = SPEED_CROUCH
 	elif stance == Stance.PRONE:
 		speed = SPEED_PRONE
+	speed *= speed_boost_mult
 	var dir := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	if dir.length() > 0.01:
 		velocity.x = dir.x * speed
@@ -500,6 +589,25 @@ func _physics_process(delta: float) -> void:
 	_process_firing(delta)
 
 
+func _process_boost(delta: float) -> void:
+	if speed_boost_timer > 0.0:
+		speed_boost_timer -= delta
+		if speed_boost_timer <= 0.0:
+			speed_boost_timer = 0.0
+			speed_boost_mult = 1.0
+
+	if boost > 0.0:
+		boost = max(boost - BOOST_DRAIN_PER_SEC * delta, 0.0)
+		boost_changed.emit(boost, MAX_BOOST)
+		if health < MAX_HEALTH:
+			_boost_heal_accum += BOOST_REGEN_RATE * delta
+			if _boost_heal_accum >= 1.0:
+				var whole := int(_boost_heal_accum)
+				_boost_heal_accum -= float(whole)
+				health = min(health + whole, MAX_HEALTH)
+				health_changed.emit(health, MAX_HEALTH)
+
+
 func _snap_to_terrain() -> void:
 	if not terrain_height_provider:
 		return
@@ -509,7 +617,7 @@ func _snap_to_terrain() -> void:
 
 func _process_firing(delta: float) -> void:
 	fire_timer -= delta
-	if is_reloading:
+	if is_reloading or is_using_item:
 		return
 	if (auto_hold or shots_remaining_in_trigger > 0) and ammo_in_mag > 0 and fire_timer <= 0.0:
 		_shoot_once()
