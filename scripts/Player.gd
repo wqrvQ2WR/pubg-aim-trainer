@@ -131,6 +131,8 @@ func _set_shoulder(active: bool) -> void:
 
 
 func _update_fov() -> void:
+	if is_reloading:
+		return
 	if ads_tween:
 		ads_tween.kill()
 	if chamber_tween:
